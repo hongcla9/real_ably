@@ -6,11 +6,9 @@ import sys
 import mysql.connector
 import chromedriver_autoinstaller
 import mysql
-import undetected_chromedriver
-import selenium.webdriver.chrome.options
+import datetime
 from adbutils._utils import current_ip
 from selenium.webdriver.support import expected_conditions as EC
-
 import undetected_chromedriver as uc
 from selenium.webdriver.support.wait import WebDriverWait
 from undetected_chromedriver import options, ChromeOptions
@@ -37,16 +35,20 @@ def init_device():
         sys.exit()
     return devices[0]
 
-def get_current_ip():
+import requests
+
+def get_current_ip_ipinfo():
     try:
-        response = requests.get("https://api64.ipify.org")
-        if response.status_code == 200:
-            print(response.text)
-            return response.text
+        response = requests.get('https://ipinfo.io/json')
+        ip = response.json()['ip']
+        return ip
     except requests.RequestException as e:
-        print(e)
-        pass
-    return ''
+        print(f"Error: {e}")
+        return None
+
+current_ip = get_current_ip_ipinfo()
+print(f"현재 IP 주소: {current_ip}")
+
 
 def change_ip_adb():
     print("Current IP: ")
@@ -72,14 +74,13 @@ def change_ip_adb():
 
 
 #undected chrome driver 시작
-def init_driver(useragent, options=None, cookies=None):
-    ua = UserAgent()
-    useragent = ua.random
+def init_driver():
+    options=uc.ChromeOptions()
     print('init_driver 함수 실행')
-    # try :
-    #     shutil.rmtree(r"C:\chrometemp")  #쿠키 / 캐쉬파일 삭제(캐쉬파일 삭제시 로그인 정보 사라짐)
-    # except FileNotFoundError :
-    #     pass
+    try :
+        shutil.rmtree(r"C:\chrometemp")  #쿠키 / 캐쉬파일 삭제(캐쉬파일 삭제시 로그인 정보 사라짐)
+    except FileNotFoundError :
+        pass
 
     # try:
     #     subprocess.Popen(r'C:\Program Files\Google\Chrome\Application\chrome.exe --remote-debugging-port=9222 '
@@ -93,16 +94,13 @@ def init_driver(useragent, options=None, cookies=None):
 
     try:
 
-        options = ChromeOptions()
-        options.add_argument("--remote-debugging-port=9222")
-        options.add_argument("--user-data-dir=C:/chrometemp")
+        options.add_argument("--auto-open-devtools-for-tabs")  # automatically open dev tools on every new tab
+        options.add_argument('--blink-settings=imagesEnabled=false')
         options.add_argument('--start-maximized')  # 브라우저가 최대화된 상태로 실행됩니다.
         from webdriver_manager.chrome import ChromeDriverManager
-
         #driver_exec_path = ChromeDriverManager().install()
         driver_exec_path = './119/chromedriver.exe'
         driver = uc.Chrome(driver_executable_path=driver_exec_path, options=options)
-
         # driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options = options)
         # driver = uc.Chrome(enable_cdp_events=True)
         try:
@@ -118,7 +116,8 @@ def init_driver(useragent, options=None, cookies=None):
         return driver
     except Exception as e:
         print('init_driver 오류', e)
-#
+
+
 # def chrome_driver_setup():
 #     # 크롬 버전 확인
 #     chrome_ver = chromedriver_autoinstaller.get_chrome_version().split('.')[0]
@@ -136,6 +135,7 @@ def init_driver(useragent, options=None, cookies=None):
 #     driver = webdriver.Chrome(service=service(ChromeDriverManager().install()))
 #     return driver
 # 랜덤 에이전트 설정
+
 def random_agent():
     software_names = [SoftwareName.CHROME.value]
     operating_systems = [OperatingSystem.WINDOWS.value, OperatingSystem.LINUX.value]
@@ -148,6 +148,7 @@ def random_agent():
     user_agent = user_agent_rotator.get_random_user_agent()  # 실제 사용자 에이전트 문자열을 가져옵니다.
     print("바꾼 user_agent", user_agent)
     return user_agent
+
 #요청에 대한 재시도 메커니즘
 # def get_url_data(keyword, link, max_retries=10):
 #     retries = 0
@@ -194,40 +195,36 @@ def random_agent():
 #     elif driver:
 #         driver.quit()  # 성공한 경우에도 브라우저 창을 닫음
 
-def get_url_data(keyword, link, max_retries=10):
-    retries = 0
-    product_id = link.split('/')[-1]  # '11560430' 추출
-    print(type(product_id))
-
-    while retries < max_retries:
-        # change_ip_adb()  # IP 변경 시도
-        time.sleep(5)
-        ua = UserAgent()
-        useragent = ua.random
-        driver = init_driver(useragent, options=options)
-        success = data_slot(driver,keyword, link, product_id)  # 데이터 슬롯 함수 호출
-
-        if success:
-            break  # 성공 시 반복문 종료
-        else:
-            print(f"Attempt {retries + 1} failed. Retrying...")
-            if driver:  # Check if driver is not None
-                driver.quit()  # 현재 열린 브라우저 창을 닫음
-            retries += 1
-            time.sleep(5)
-
-    if driver:  # Check if driver is not None
-        driver.quit()  # 성공한 경우에도 브라우저 창을 닫음
+# def get_url_data(driver,keyword, url, max_retries=10):
+#     retries = 0
+#     product_id = url.split('/')[-1]  # '11560430' 추출
+#     print(type(product_id))
+#
+#     while retries < max_retries:
+#         # change_ip_adb()  # IP 변경 시도
+#         time.sleep(5)
+#         ua = UserAgent()
+#         useragent = ua.random
+#         driver = init_driver()
+#         success = data_slot(driver,keyword, url, product_id)  # 데이터 슬롯 함수 호출
+#
+#         if success:
+#             break  # 성공 시 반복문 종료
+#         else:
+#             print(f"Attempt {retries + 1} failed. Retrying...")
+#             if driver:  # Check if driver is not None
+#                 driver.quit()  # 현재 열린 브라우저 창을 닫음
+#             retries += 1
+#             time.sleep(5)
+#
+#     if driver:  # Check if driver is not None
+#         driver.quit()  # 성공한 경우에도 브라우저 창을 닫음
 
 @pysnooper.snoop()
-def data_slot(driver,keyword,link,product_id):
-    # user_agent = random_agent()  # 랜덤 사용자 에이전트를 가져옵니다.
-    # random_agent()
+def data_slot(driver,keyword,url):
+    product_id = url.split('/')[-1]  # '11560430' 추출
     success = False  # 성공 여부를 나타내는 플래그 변수1
     try:
-           # response = requests.get(link, stream=True)
-            #driver.implicitly_wait(20)
-            #response.raise_for_status()  # 오류 발생 시 예외를 발생시킵니다.
             print("인스턴스 생성완료")
             # driver.implicitly_wait(20)  # 예: 10초 동안 대기
             # https://m.a-bly.com/ 접속
@@ -246,13 +243,17 @@ def data_slot(driver,keyword,link,product_id):
             # 5초 대기
             time.sleep(10)
 
-            # 두 번째 요소 클릭
-            search_input = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "svg[viewBox='0 0 20 20']")))
-            search_input.click()
+            # 요소 찾기
+            search_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input.sc-8b721f4d-2.kCBYFq"))
+            )
 
-            # 주어진 키워드 입력 후 검색 실행
-            search_input.send_keys(keyword)
-            search_input.send_keys(Keys.RETURN)
+            # 요소 클릭
+            search_element.click()
+
+            # 텍스트 입력
+            search_element.send_keys(keyword)
+            search_element.send_keys(Keys.RETURN)
 
             # 5초 대기
             time.sleep(5)
@@ -270,21 +271,26 @@ def data_slot(driver,keyword,link,product_id):
             driver.find_element(By.CSS_SELECTOR,
                                 "#root > div.sc-baef2181-0.hsbGZQ.sc-b88b4070-5.clba-dr.sc-90c342b5-0.ihHGPr > div.sc-b88b4070-3.zkuwn > div > button.sc-90c342b5-2.jJDjxT.button.button__fill.button__medium.button__solid__pink.typography__subtitle2").click()
             print("결과보기 찍음")
-            driver.get(link)
+            driver.get(url)
             time.sleep(30)
-            #
             #driver.back()
-            # # 뒤로가기 버튼 클릭
+            #뒤로가기 버튼 클릭
+            success = True
             print("작업 완료")
-            success = True  # 성공한 경우 플래그를 True로 설정
+            print(f"An error occurred for keyword '{keyword}' and link '{url}'")
+            # 성공한 경우 플래그를 True로 설정
     except requests.RequestException as e:  # requests 라이브러리에서 발생하는 모든 예외를 처리합니다.
-            print(f"Failed to access '{link}' using requests. Error: {str(e)}")
-    except Exception as e:
-            print(f"An error occurred for keyword '{keyword}' and link '{link}': {str(e)}")
+            print(f"Failed to access '{url}' using requests. Error: {str(e)}")
+
     finally:
+        print(f"작업 성공 여부: {success}")
         if success:
-            data = (product_id,current_ip,user_agent, keyword, link)  # 여기서 ip와 user_agent를 사용합니다.
+            # 현재 시간을 YYYY-MM-DD HH:MM:SS 형식으로 가져오기
+            log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            data = (current_ip, user_agent, url, product_id, keyword)  # 여기서 ip와 user_agent를 사용합니다.
+            print(data)
             save_to_database(data)
+            print(data)
 
         else:
             print("작업에 실패하였습니다")
@@ -305,14 +311,16 @@ def save_to_database(data):
                                              password=db_password)
         print("db connection")
         if connection.is_connected():
-            print("if 문 들어옴 ")
-            cursor = connection.cursor()
-            query = """INSERT INTO sys.ably_log (id,current_ip, user_agent, keyword, url) VALUES (%s,%s, %s, %s, %s)"""
-            print("쿼리 작성했음  ")
+            print("DB 연결 성공")
+            cursor = connection.cursor(prepared=True)
+            # 쿼리 수정: log_time 컬럼에 현재 시간을 삽입
+            query = """INSERT INTO sys.ably_log (log_time, current_ip, user_agent, url, product_id, keyword) VALUES (NOW(),%s, %s, %s, %s, %s)"""
+            print("쿼리 작성 완료")
+            # data 튜플이 (current_ip, user_agent, url, product_id, keyword) 순서로 되어 있어야 함
             cursor.execute(query, data)
-            print("쿼리 실행 했음")
+            print("쿼리 실행 완료")
             connection.commit()
-            print("Data successfully saved to database")
+            print("데이터베이스에 로그 저장 완료")
     except mysql.connector.Error as e:
         print(f"Error while connecting to MySQL: {e}")
     finally:
@@ -348,14 +356,17 @@ def save_to_database(data):
 
 if __name__ == '__main__':
 
-    keywords_links = [
-        ('미니원피스', 'https://m.a-bly.com/goods/11560430')
+    keywords_urls = [
+        ('미니원피스', 'https://m.a-bly.com/goods/11560430'),
+        ('유심', 'https://m.a-bly.com/goods/12208942'),
+
     ]
+while True:
+    for keyword, url in keywords_urls:
 
-for keyword, link in keywords_links:
-
-    # get_current_ip()
-    #print(f"Processing keyword: {keyword}, link: {link}")
-    # 모든 함수의 변수는 사전에 정의되어 있어야 한다.
-
-    get_url_data(keyword, link, max_retries=10)
+        change_ip_adb()
+        get_current_ip_ipinfo()
+        print(f"Processing keyword: {keyword}, url: {url}")
+        # 모든 함수의 변수는 사전에 정의되어 있어야 한다.
+        driver = init_driver()
+        data_slot(driver,keyword, url)
