@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import shutil
 import sys
+import urllib
 
 import mysql.connector
 import chromedriver_autoinstaller
@@ -140,7 +142,7 @@ def random_agent():
     software_names = [SoftwareName.CHROME.value]
     operating_systems = [OperatingSystem.WINDOWS.value, OperatingSystem.LINUX.value]
 
-    user_agent_rotator = UserAgent(software_names=software_names, operating_systems=operating_systems, limit=100)
+    user_agent_rotator = UserAgent(software_names=software_names,operating_systems=operating_systems, limit=100)
 
     # Get list of user agents.
     user_agents = user_agent_rotator.get_user_agents()
@@ -149,7 +151,84 @@ def random_agent():
     print("바꾼 user_agent", user_agent)
     return user_agent
 
-#요청에 대한 재시도 메커니즘
+def get_product_list(keyword, url, max_iterations=30):
+    # Extract sno from the user provided URL
+    sno_to_find = re.search(r'/goods/(\d+)', url).group(1)
+
+    next_token = None
+    initial_iteration = True
+    found = False  # Initialize 'found' here
+    Rank = 0
+
+    for iteration in range(max_iterations):
+        encoded_keyword = urllib.parse.quote(keyword)
+        search_url = f"https://api.a-bly.com/api/v2/screens/SEARCH_RESULT/?query={encoded_keyword}&search_type=DIRECT&sorting_type=POPULAR"
+        if next_token:
+            search_url += f"&next_token={next_token}"
+
+        user_agent = UserAgent()
+        headers = {
+            'authority': 'api.a-bly.com',
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'cache-control': 'no-cache',
+            'origin': 'https://m.a-bly.com',
+            'pragma': 'no-cache',
+            'referer': 'https://m.a-bly.com/',
+            'sec-ch-ua': '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+            'sec-ch-ua-mobile': '?1',
+            'sec-ch-ua-platform': '"Android"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': user_agent.random,  # 랜덤한 User-Agent를 사용합니다.
+            'x-anonymous-token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbm9ueW1vdXNfaWQiOiIxNjM4NjU3OTUiLCJpYXQiOjE2OTk5NDcwMzB9.SOqLvOojj5O7pjzWOpG-IkzAZxYFnFr0xjpgVl1pFkc',
+            'x-app-version': '0.1.0',
+            'x-device-id': 'b8181251-fbe9-4094-bdff-312ab8dc4b77',
+            'x-device-type': 'MobileWeb'
+
+        }
+
+        response = requests.get(search_url, headers=headers)
+        if response.status_code == 200:
+            data = json.loads(response.text)
+
+            for component in data["components"]:
+                if component.get("type", {}).get("item_list") == "THREE_COL_GOODS_LIST":
+                    for item in component["entity"]["item_list"]:
+                        Rank += 1
+                        product = item["item"]
+                        #print(Rank,product)
+
+
+                       # adjusted_rank = iteration * len(component["entity"]["item_list"]) + component["entity"][
+                        #    "item_list"].index(item) + 1
+                        #print(adjusted_rank,product)
+                        if str(product["sno"]) == sno_to_find:
+                           # print(adjusted_rank,sno={product['sno']},market_name={product['market_name']})
+                            print(f"Found your product: Rank: {Rank}, sno={product['sno']}, market_name={product['market_name']}, item_name={product['name']}")
+                            #print(type(Rank))
+                            found = True
+                            break
+
+                if found:
+                    break
+
+            if found:
+                break
+
+            next_token = data.get("next_token", None)
+            if not next_token:
+                print("No more data or Next Token not found. Ending process.")
+                break
+        else:
+            print("Error fetching data. Status code:", response.status_code)
+            break
+
+    if not found:
+        print(f"Product with sno {sno_to_find} not found in the search results.")
+    return found, Rank, next_token
+    #요청에 대한 재시도 메커니즘
 # def get_url_data(keyword, link, max_retries=10):
 #     retries = 0
 #     product_id = link.split('/')[-1]  # '11560430' 추출
@@ -221,7 +300,11 @@ def random_agent():
 #         driver.quit()  # 성공한 경우에도 브라우저 창을 닫음
 
 @pysnooper.snoop()
-def data_slot(driver,keyword,url):
+def data_slot(driver,keyword,url,Rank):
+    ua = UserAgent()
+    user_agent = ua.random
+    print(user_agent)
+    #get_product_list(keyword, url,Rank,max_iterations=30)
     product_id = url.split('/')[-1]  # '11560430' 추출
     success = False  # 성공 여부를 나타내는 플래그 변수1
     try:
@@ -271,13 +354,14 @@ def data_slot(driver,keyword,url):
             driver.find_element(By.CSS_SELECTOR,
                                 "#root > div.sc-baef2181-0.hsbGZQ.sc-b88b4070-5.clba-dr.sc-90c342b5-0.ihHGPr > div.sc-b88b4070-3.zkuwn > div > button.sc-90c342b5-2.jJDjxT.button.button__fill.button__medium.button__solid__pink.typography__subtitle2").click()
             print("결과보기 찍음")
-            driver.get(url)
+            #driver.get(url)
+            # 스크롤하고 상품 클릭
+            scroll_to_find_product_by_rank(driver, Rank, 186.66)
             time.sleep(30)
             #driver.back()
             #뒤로가기 버튼 클릭
             success = True
-            print("작업 완료")
-            print(f"An error occurred for keyword '{keyword}' and link '{url}'")
+            print(f"작업완료 '{keyword}' and link '{url}'")
             # 성공한 경우 플래그를 True로 설정
     except requests.RequestException as e:  # requests 라이브러리에서 발생하는 모든 예외를 처리합니다.
             print(f"Failed to access '{url}' using requests. Error: {str(e)}")
@@ -287,13 +371,43 @@ def data_slot(driver,keyword,url):
         if success:
             # 현재 시간을 YYYY-MM-DD HH:MM:SS 형식으로 가져오기
             log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            data = (current_ip, user_agent, url, product_id, keyword)  # 여기서 ip와 user_agent를 사용합니다.
+            data = (current_ip, user_agent, url, product_id, keyword,Rank)  # 여기서 ip와 user_agent를 사용합니다.
             print(data)
             save_to_database(data)
             print(data)
-
+            driver.quit()
         else:
             print("작업에 실패하였습니다")
+
+from selenium.webdriver.common.action_chains import ActionChains
+
+def scroll_to_find_product_by_rank(driver, rank, product_height):
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        # 현재 페이지의 상품들을 찾음
+
+        products = driver.find_elements(By.CLASS_NAME, "sc-ecca1885-2")
+        time.sleep(30)
+        if rank <= len(products):
+            # 원하는 순위의 상품을 찾았으면 스크롤하고 클릭하고 루프 종료
+            target_product = products[rank - 1]
+            ActionChains(driver).move_to_element(target_product).perform()
+            time.sleep(2)  # 스크롤 후 잠시 대기
+            target_product.click()
+            break
+
+        # 스크롤 다운
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(10)  # 로딩 대기
+
+        # 새로운 스크롤 위치를 계산
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            # 더 이상 스크롤할 곳이 없으면 루프 종료
+            print(f"Reached the end of the page. Rank {rank} not found.")
+            break
+        last_height = new_height
+
 
 def save_to_database(data):
     connection = None  # Declare connection variable
@@ -314,7 +428,7 @@ def save_to_database(data):
             print("DB 연결 성공")
             cursor = connection.cursor(prepared=True)
             # 쿼리 수정: log_time 컬럼에 현재 시간을 삽입
-            query = """INSERT INTO sys.ably_log (log_time, current_ip, user_agent, url, product_id, keyword) VALUES (NOW(),%s, %s, %s, %s, %s)"""
+            query = """INSERT INTO sys.ably_log (log_time, current_ip, user_agent, url, product_id, keyword,Rank) VALUES (NOW(),%s, %s, %s, %s, %s,%s)"""
             print("쿼리 작성 완료")
             # data 튜플이 (current_ip, user_agent, url, product_id, keyword) 순서로 되어 있어야 함
             cursor.execute(query, data)
@@ -326,6 +440,7 @@ def save_to_database(data):
     finally:
         if connection and connection.is_connected():
             connection.close()
+
 
 # def save_to_database(data):
 #     with open('config_mysql.json') as f:
@@ -357,16 +472,15 @@ def save_to_database(data):
 if __name__ == '__main__':
 
     keywords_urls = [
-        ('미니원피스', 'https://m.a-bly.com/goods/11560430'),
-        ('유심', 'https://m.a-bly.com/goods/12208942'),
+        ('거북이','https://m.a-bly.com/goods/5303035'),
+        ('미니원피스','https://m.a-bly.com/goods/12159753')
 
     ]
 while True:
     for keyword, url in keywords_urls:
-
-        change_ip_adb()
-        get_current_ip_ipinfo()
-        print(f"Processing keyword: {keyword}, url: {url}")
-        # 모든 함수의 변수는 사전에 정의되어 있어야 한다.
-        driver = init_driver()
-        data_slot(driver,keyword, url)
+            change_ip_adb()
+            get_current_ip_ipinfo()
+            print(f"Processing keyword: {keyword}, url: {url}")
+            driver = init_driver()
+            found, Rank, next_token = get_product_list(keyword, url, max_iterations=30)
+            data_slot(driver, keyword, url,Rank)  # Pass Rank to data_slot
