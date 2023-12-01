@@ -355,59 +355,85 @@ def data_slot(driver,keyword,url,Rank):
                                 "#root > div.sc-baef2181-0.hsbGZQ.sc-b88b4070-5.clba-dr.sc-90c342b5-0.ihHGPr > div.sc-b88b4070-3.zkuwn > div > button.sc-90c342b5-2.jJDjxT.button.button__fill.button__medium.button__solid__pink.typography__subtitle2").click()
             print("결과보기 찍음")
             #driver.get(url)
-            # 스크롤하고 상품 클릭
-            scroll_to_find_product_by_rank(driver, Rank, 186.66)
-            time.sleep(30)
-            #driver.back()
-            #뒤로가기 버튼 클릭
-            success = True
-            print(f"작업완료 '{keyword}' and link '{url}'")
-            # 성공한 경우 플래그를 True로 설정
-    except requests.RequestException as e:  # requests 라이브러리에서 발생하는 모든 예외를 처리합니다.
-            print(f"Failed to access '{url}' using requests. Error: {str(e)}")
+            # 스크롤 위치 계산
+            row_number = (Rank - 1) // 3  # Rank를 3으로 나누어 줄 번호를 계산 (0부터 시작)
+            scroll_distance = row_number * 186.66
+            print(f"Scrolling to row {row_number}, distance: {scroll_distance}")
 
+            # 스크롤
+            driver.execute_script(f"window.scrollTo(0, {scroll_distance});")
+            print('Scrolling...')
+            time.sleep(30)  # 스크롤 후 대기
+
+            # 상품 클릭
+            product_index = (Rank - 1) % 3  # 같은 줄 내에서의 상품 위치
+            products = driver.find_elements(By.CLASS_NAME, "sc-ecca1885-2")
+            row_products = products[row_number * 3: (row_number + 1) * 3]  # 해당 줄의 상품들
+            if product_index < len(row_products):
+                ActionChains(driver).move_to_element(row_products[product_index]).click().perform()
+                print(f"Clicked product at rank {Rank} (row {row_number}, position {product_index + 1})")
+            else:
+                print(f"Product at rank {Rank} not found")
+            success = True
+
+    except requests.RequestException as e:
+        print(f"Failed to access '{url}' using requests. Error: {str(e)}")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
     finally:
         print(f"작업 성공 여부: {success}")
         if success:
-            # 현재 시간을 YYYY-MM-DD HH:MM:SS 형식으로 가져오기
             log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            data = (current_ip, user_agent, url, product_id, keyword,Rank)  # 여기서 ip와 user_agent를 사용합니다.
+            data = (current_ip, user_agent, url, product_id, keyword, Rank)
             print(data)
             save_to_database(data)
-            print(data)
             driver.quit()
         else:
             print("작업에 실패하였습니다")
+            #
+    #         #driver.back()
+    #         #뒤로가기 버튼 클릭
+    #         success = True
+    #         print(f"작업완료 '{keyword}' and link '{url}'")
+    #         # 성공한 경우 플래그를 True로 설정
+    # except requests.RequestException as e:  # requests 라이브러리에서 발생하는 모든 예외를 처리합니다.
+    #         print(f"Failed to access '{url}' using requests. Error: {str(e)}")
+    #
+    # finally:
+    #     print(f"작업 성공 여부: {success}")
+    #     if success:
+    #         # 현재 시간을 YYYY-MM-DD HH:MM:SS 형식으로 가져오기
+    #         log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    #         data = (current_ip, user_agent, url, product_id, keyword,Rank)  # 여기서 ip와 user_agent를 사용합니다.
+    #         print(data)
+    #         save_to_database(data)
+    #         print(data)
+    #         driver.quit()
+    #     else:
+    #         print("작업에 실패하였습니다")
 
 from selenium.webdriver.common.action_chains import ActionChains
 
-def scroll_to_find_product_by_rank(driver, rank, product_height):
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    while True:
-        # 현재 페이지의 상품들을 찾음
 
-        products = driver.find_elements(By.CLASS_NAME, "sc-ecca1885-2")
-        time.sleep(30)
-        if rank <= len(products):
-            # 원하는 순위의 상품을 찾았으면 스크롤하고 클릭하고 루프 종료
-            target_product = products[rank - 1]
-            ActionChains(driver).move_to_element(target_product).perform()
-            time.sleep(2)  # 스크롤 후 잠시 대기
-            target_product.click()
-            break
-
-        # 스크롤 다운
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(10)  # 로딩 대기
-
-        # 새로운 스크롤 위치를 계산
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            # 더 이상 스크롤할 곳이 없으면 루프 종료
-            print(f"Reached the end of the page. Rank {rank} not found.")
-            break
-        last_height = new_height
-
+# def search_and_click_product(driver, keyword, rank):
+#     product_height = 186.66
+#     # 검색 입력 필드 찾기
+#     search_element = driver.find_element(By.CSS_SELECTOR, "input.sc-8b721f4d-2.kCBYFq")
+#     search_element.clear()
+#     search_element.send_keys(keyword)
+#     search_element.send_keys(Keys.RETURN)
+#
+#     # 페이지 로딩 대기
+#     time.sleep(5)  # 필요에 따라 WebDriverWait를 사용하여 요소가 로드될 때까지 기다릴 수 있습니다.
+#
+#     # 스크롤 위치 계산
+#     scroll_distance = rank * product_height
+#
+#     # 스크롤
+#     driver.execute_script(f"window.scrollTo(0, {scroll_distance});")
+#
+#     # 스크롤 후 적절한 대기 시간 추가
+#     time.sleep(3)
 
 def save_to_database(data):
     connection = None  # Declare connection variable
