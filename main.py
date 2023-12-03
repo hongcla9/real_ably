@@ -354,26 +354,37 @@ def data_slot(driver,keyword,url,Rank):
             driver.find_element(By.CSS_SELECTOR,
                                 "#root > div.sc-baef2181-0.hsbGZQ.sc-b88b4070-5.clba-dr.sc-90c342b5-0.ihHGPr > div.sc-b88b4070-3.zkuwn > div > button.sc-90c342b5-2.jJDjxT.button.button__fill.button__medium.button__solid__pink.typography__subtitle2").click()
             print("결과보기 찍음")
-            #driver.get(url)
-            # 스크롤 위치 계산
-            row_number = (Rank - 1) // 3  # Rank를 3으로 나누어 줄 번호를 계산 (0부터 시작)
-            scroll_distance = row_number * 186.66
-            print(f"Scrolling to row {row_number}, distance: {scroll_distance}")
+            # Get scroll height
+            target_index = Rank  # 원하는 상품의 순위를 target_index로 설정
 
-            # 스크롤
-            driver.execute_script(f"window.scrollTo(0, {scroll_distance});")
-            print('Scrolling...')
-            time.sleep(30)  # 스크롤 후 대기
+            last_height = driver.execute_script("return document.body.scrollHeight")
 
-            # 상품 클릭
-            product_index = (Rank - 1) % 3  # 같은 줄 내에서의 상품 위치
-            products = driver.find_elements(By.CLASS_NAME, "sc-ecca1885-2")
-            row_products = products[row_number * 3: (row_number + 1) * 3]  # 해당 줄의 상품들
-            if product_index < len(row_products):
-                ActionChains(driver).move_to_element(row_products[product_index]).click().perform()
-                print(f"Clicked product at rank {Rank} (row {row_number}, position {product_index + 1})")
-            else:
-                print(f"Product at rank {Rank} not found")
+            while True:
+                # Scroll down to bottom
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                # Wait to load page
+                time.sleep(60)
+
+                # Calculate new scroll height and compare with last scroll height
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                time.sleep(60)
+                # Find all products
+                products = driver.find_elements(By.CSS_SELECTOR, ".sc-b3c10446-0.eehnxg")
+                time.sleep(20)
+                # If target product is visible, click and break
+                if len(products) >= target_index:
+                    target_product = products[target_index - 1]  # 인덱스는 0부터 시작하므로 -1
+                    target_product.find_element(By.CLASS_NAME, 'sc-ecca1885-2.gnGgBD').click()
+                    print("이미지 요소 클릭 완료")
+                    time.sleep(40)
+                    break
+
+                # If the bottom is reached and target product is still not visible
+                if new_height == last_height:
+                    print("더 이상 스크롤할 수 없거나 원하는 상품을 찾을 수 없습니다.")
+                    break
+                last_height = new_height
             success = True
 
     except requests.RequestException as e:
@@ -504,8 +515,8 @@ if __name__ == '__main__':
     ]
 while True:
     for keyword, url in keywords_urls:
-            change_ip_adb()
-            get_current_ip_ipinfo()
+            #change_ip_adb()
+            #get_current_ip_ipinfo()
             print(f"Processing keyword: {keyword}, url: {url}")
             driver = init_driver()
             found, Rank, next_token = get_product_list(keyword, url, max_iterations=30)
